@@ -16,12 +16,11 @@
     "dotenv": "^18.0.8",
     "drizzle-orm": "^0.45.4",
     "mammoth": "^1.13.0",
-    "pdf-parse": "^2.4.5"
+    "pdf2json": "^4.1.0"
   },
   "devDependencies": {
     "@types/dotenv": "^6.1.1",
     "@types/node": "^26.6.5",
-    "@types/pdf-parse": "^1.1.5",
     "@vercel/node": "^24.0.1",
     "drizzle-kit": "^0.31.11",
     "tsx": "^4.23.15",

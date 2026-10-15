@@ -1,14 +1,30 @@
 import { neon } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
-import { submissions } from '../db/schema';
+import { submissions } from '../db/schema.js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import mammoth from 'mammoth';
-import * as pdfParseModule from 'pdf-parse';
-const pdfParse = (pdfParseModule as any).default || pdfParseModule;
+import PDFParser from 'pdf2json';
 
 const MAX_FILE_SIZE = 4 * 1024 * 1024;
-
 const ALLOWED_EXTENSIONS = ['.pdf', '.docx'];
+
+// Fungsi pembantu untuk membaca teks PDF murni dari buffer
+function extractPdfText(buffer: Buffer): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const pdfParser = new (PDFParser as any)(null, 1);
+
+    pdfParser.on('pdfParser_dataError', (errData: any) => {
+      reject(errData.parserError || errData);
+    });
+
+    pdfParser.on('pdfParser_dataReady', () => {
+      const rawText = (pdfParser as any).getRawTextContent();
+      resolve(rawText || '');
+    });
+
+    pdfParser.parseBuffer(buffer);
+  });
+}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -19,8 +35,9 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   const db = drizzle(sql);
 
   try {
-    const { authorName, instagram, tiktok, fileName, fileBase64 } = req.body || {};
-    let { storyText } = req.body || {};
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {};
+    const { authorName, instagram, tiktok, fileName, fileBase64 } = body;
+    let { storyText } = body;
 
     if (!authorName) {
       return res.status(400).json({ success: false, message: 'Nama penulis wajib diisi.' });
@@ -28,9 +45,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
     if (fileBase64 && fileName) {
       const lowerName = fileName.toLowerCase();
-
-      // 1. Validasi Ekstensi (.pdf atau .docx)
       const isAllowedExtension = ALLOWED_EXTENSIONS.some((ext) => lowerName.endsWith(ext));
+
       if (!isAllowedExtension) {
         return res.status(400).json({
           success: false,
@@ -49,26 +65,24 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       try {
         if (lowerName.endsWith('.pdf')) {
-          const parsedPdf = await pdfParse(fileBuffer);
-          storyText = parsedPdf.text?.trim() || storyText;
+          const parsedPdfText = await extractPdfText(fileBuffer);
+          storyText = parsedPdfText.trim() || storyText;
         } else if (lowerName.endsWith('.docx')) {
           const parsedDocx = await mammoth.extractRawText({ buffer: fileBuffer });
           storyText = parsedDocx.value?.trim() || storyText;
         }
       } catch (extractErr) {
-        console.error('Peringatan: Gagal mengekstrak teks berkas:', extractErr);
+        console.error('Peringatan ekstraksi teks berkas:', extractErr);
       }
     }
 
-    // Validasi ketersediaan cerita
     if (!storyText || storyText.trim() === '') {
       return res.status(400).json({
         success: false,
-        message: 'Teks cerita tidak ditemukan. Harap isi textbox atau unggah berkas PDF/DOCX yang memuat teks.',
+        message: 'Teks cerita tidak ditemukan. Harap isi teks langsung atau sertakan dokumen valid.',
       });
     }
 
-    // Simpan ke database Neon Postgres
     await db.insert(submissions).values({
       authorName,
       storyText: storyText.trim(),
@@ -82,11 +96,11 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       message: 'Cerita berhasil disubmit ke arsip database.',
     });
   } catch (error: any) {
-    console.error('Error saat submit:', error);
+    console.error('Runtime error:', error);
     return res.status(500).json({
       success: false,
       message: 'Terjadi kesalahan pada server.',
-      error: error.message,
+      error: error?.message || String(error),
     });
   }
 }
