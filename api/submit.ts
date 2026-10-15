@@ -1,16 +1,13 @@
 import { neon } from '@neondatabase/serverless';
 import { drizzle } from 'drizzle-orm/neon-http';
 import { submissions } from '../db/schema';
-import { put } from '@vercel/blob';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import mammoth from 'mammoth';
 import * as pdfParseModule from 'pdf-parse';
 const pdfParse = (pdfParseModule as any).default || pdfParseModule;
 
-// Batas ukuran file maksimal: 4 MB (dalam bytes)
-const MAX_FILE_SIZE = 4 * 1024 * 1024; 
+const MAX_FILE_SIZE = 4 * 1024 * 1024;
 
-// Ekstensi yang diizinkan
 const ALLOWED_EXTENSIONS = ['.pdf', '.docx'];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
@@ -24,19 +21,15 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     const { authorName, instagram, tiktok, fileName, fileBase64 } = req.body || {};
     let { storyText } = req.body || {};
-    let uploadedFileUrl: string | null = null;
 
     if (!authorName) {
       return res.status(400).json({ success: false, message: 'Nama penulis wajib diisi.' });
     }
 
-    // ==========================================
-    // LOGIKA PEMBATASAN & PEMERIKSAAN BERKAS
-    // ==========================================
     if (fileBase64 && fileName) {
       const lowerName = fileName.toLowerCase();
-      
-      // 1. Validasi Ekstensi: Pastikan hanya .pdf atau .docx
+
+      // 1. Validasi Ekstensi (.pdf atau .docx)
       const isAllowedExtension = ALLOWED_EXTENSIONS.some((ext) => lowerName.endsWith(ext));
       if (!isAllowedExtension) {
         return res.status(400).json({
@@ -45,10 +38,8 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
       }
 
-      // Konversi Base64 ke Buffer untuk cek ukuran fisik
       const fileBuffer = Buffer.from(fileBase64, 'base64');
 
-      // 2. Validasi Ukuran Berkas: Cek apakah melebihi batas maksimal (4 MB)
       if (fileBuffer.length > MAX_FILE_SIZE) {
         return res.status(400).json({
           success: false,
@@ -56,14 +47,6 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         });
       }
 
-      // 3. Simpan berkas fisik ke Vercel Blob setelah lolos validasi
-      const blob = await put(`submissions/${Date.now()}-${fileName}`, fileBuffer, {
-        access: 'public',
-        token: process.env.BLOB_READ_WRITE_TOKEN,
-      });
-      uploadedFileUrl = blob.url;
-
-      // 4. Ekstrak teks secara otomatis dari berkas PDF / DOCX
       try {
         if (lowerName.endsWith('.pdf')) {
           const parsedPdf = await pdfParse(fileBuffer);
@@ -78,18 +61,18 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     }
 
     // Validasi ketersediaan cerita
-    if (!storyText && !uploadedFileUrl) {
+    if (!storyText || storyText.trim() === '') {
       return res.status(400).json({
         success: false,
-        message: 'Harap sertakan teks cerita langsung atau unggah berkas PDF/DOCX.',
+        message: 'Teks cerita tidak ditemukan. Harap isi textbox atau unggah berkas PDF/DOCX yang memuat teks.',
       });
     }
 
     // Simpan ke database Neon Postgres
     await db.insert(submissions).values({
       authorName,
-      storyText: storyText || 'Teks tidak terbaca dari berkas fisik.',
-      fileUrl: uploadedFileUrl,
+      storyText: storyText.trim(),
+      fileUrl: null,
       instagram: instagram || null,
       tiktok: tiktok || null,
     });
