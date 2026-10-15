@@ -3,53 +3,10 @@ import { drizzle } from 'drizzle-orm/neon-http';
 import { submissions } from '../db/schema.js';
 import type { VercelRequest, VercelResponse } from '@vercel/node';
 import mammoth from 'mammoth';
-import PDFParser from 'pdf2json';
+import { extractText } from 'unpdf';
 
 const MAX_FILE_SIZE = 4 * 1024 * 1024;
 const ALLOWED_EXTENSIONS = ['.pdf', '.docx'];
-
-// Fungsi pembantu membaca teks PDF secara menyeluruh
-function extractPdfText(buffer: Buffer): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const pdfParser = new (PDFParser as any)(null, 1);
-
-    pdfParser.on('pdfParser_dataError', (errData: any) => {
-      reject(errData.parserError || errData);
-    });
-
-    pdfParser.on('pdfParser_dataReady', (pdfData: any) => {
-      try {
-        let fullText = '';
-        if (pdfData && pdfData.Pages) {
-          for (const page of pdfData.Pages) {
-            if (page.Texts) {
-              for (const textItem of page.Texts) {
-                if (textItem.R) {
-                  for (const r of textItem.R) {
-                    if (r.T) {
-                      fullText += decodeURIComponent(r.T) + ' ';
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-
-        // Fallback jika array halaman kosong
-        if (!fullText.trim() && typeof (pdfParser as any).getRawTextContent === 'function') {
-          fullText = (pdfParser as any).getRawTextContent();
-        }
-
-        resolve(fullText.trim());
-      } catch {
-        resolve('');
-      }
-    });
-
-    pdfParser.parseBuffer(buffer);
-  });
-}
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   if (req.method !== 'POST') {
@@ -90,14 +47,20 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
 
       try {
         if (lowerName.endsWith('.pdf')) {
-          const parsedPdfText = await extractPdfText(fileBuffer);
-          storyText = parsedPdfText.trim() || storyText;
+          // Ekstrak langsung dengan unpdf (Promise-based)
+          const { text } = await extractText(new Uint8Array(fileBuffer));
+          const joinedText = Array.isArray(text) ? text.join('\n') : text;
+          if (joinedText && joinedText.trim()) {
+            storyText = joinedText.trim();
+          }
         } else if (lowerName.endsWith('.docx')) {
           const parsedDocx = await mammoth.extractRawText({ buffer: fileBuffer });
-          storyText = parsedDocx.value?.trim() || storyText;
+          if (parsedDocx.value && parsedDocx.value.trim()) {
+            storyText = parsedDocx.value.trim();
+          }
         }
       } catch (extractErr) {
-        console.error('Peringatan ekstraksi teks berkas:', extractErr);
+        console.error('Ekstraksi gagal:', extractErr);
       }
     }
 
