@@ -8,7 +8,7 @@ import PDFParser from 'pdf2json';
 const MAX_FILE_SIZE = 4 * 1024 * 1024;
 const ALLOWED_EXTENSIONS = ['.pdf', '.docx'];
 
-// Fungsi pembantu untuk membaca teks PDF murni dari buffer
+// Fungsi pembantu membaca teks PDF secara menyeluruh
 function extractPdfText(buffer: Buffer): Promise<string> {
   return new Promise((resolve, reject) => {
     const pdfParser = new (PDFParser as any)(null, 1);
@@ -17,9 +17,34 @@ function extractPdfText(buffer: Buffer): Promise<string> {
       reject(errData.parserError || errData);
     });
 
-    pdfParser.on('pdfParser_dataReady', () => {
-      const rawText = (pdfParser as any).getRawTextContent();
-      resolve(rawText || '');
+    pdfParser.on('pdfParser_dataReady', (pdfData: any) => {
+      try {
+        let fullText = '';
+        if (pdfData && pdfData.Pages) {
+          for (const page of pdfData.Pages) {
+            if (page.Texts) {
+              for (const textItem of page.Texts) {
+                if (textItem.R) {
+                  for (const r of textItem.R) {
+                    if (r.T) {
+                      fullText += decodeURIComponent(r.T) + ' ';
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+
+        // Fallback jika array halaman kosong
+        if (!fullText.trim() && typeof (pdfParser as any).getRawTextContent === 'function') {
+          fullText = (pdfParser as any).getRawTextContent();
+        }
+
+        resolve(fullText.trim());
+      } catch {
+        resolve('');
+      }
     });
 
     pdfParser.parseBuffer(buffer);
