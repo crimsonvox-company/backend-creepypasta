@@ -11,7 +11,7 @@ const ALLOWED_EXTENSIONS = ['.pdf', '.docx'];
 // Middleware bantuan untuk CORS
 const setCorsHeaders = (res: VercelResponse) => {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Origin', 'https://creepypasta-form.vercel.app/'); // Ganti '*' dengan URL frontend Anda di production
+  res.setHeader('Access-Control-Allow-Origin', 'https://creepypasta-form.vercel.app'); // Ganti '*' dengan URL frontend Anda di production
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
 };
