@@ -103,8 +103,26 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       tiktok: tiktok || null,
     });
 
-    // 9. Berikan Respons Sukses
-    return res.status(200).json({
+    // ... kode db.insert sebelumnya ...
+
+// Kirim notifikasi ke Discord
+const discordWebhookUrl = "https://discord.com/api/webhooks/1560522314448248882/dgAoqHhfHHGoURrsP2guVp_1Twe7StfIEemm9vGeKLdWt16WdqL4CX7O27jVhq7Of95C"; // <-- GANTI DENGAN URL HASIL COPY
+
+try {
+  await fetch(discordWebhookUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      content: `🚨 **BISIKAN BARU TELAH DITERIMA!** 🚨\n\n**Penulis:** ${authorName}\n**Panjang Cerita:** ${storyText.length} karakter.\n**Instagram:** ${instagram || '-'}\n\nSilakan cek database Neon untuk membaca selengkapnya!`
+    })
+  });
+} catch (discordErr) {
+  console.error("Gagal mengirim notif Discord:", discordErr);
+  // Kita tidak me-return error di sini agar tidak mengganggu proses sukses di frontend pengguna
+}
+
+  // 9. Berikan Respons Sukses
+      return res.status(200).json({
       success: true,
       message: 'Cerita berhasil disubmit ke arsip database.',
     });
