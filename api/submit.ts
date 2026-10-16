@@ -117,7 +117,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          content: `🚨 **BISIKAN BARU TELAH DITERIMA!** 🚨\n\n**Penulis:** ${authorName}\n**Panjang Cerita:** ${storyText.length} karakter.\n**Instagram:** ${instagram || '-'}.\n**Tiktok:** ${tiktok || '-'}\n\n⏱️ *Waktu Pemrosesan (termasuk DB): ${executionTimeMs} ms*`
+          content: `🚨 **BISIKAN BARU TELAH DITERIMA!** 🚨\n\n**Penulis:** ${authorName}\n**Panjang Cerita:** ${storyText.length} karakter.\n**Instagram:** ${instagram || '-'}\n**Tiktok:** ${tiktok || '-'}\n\n⏱️ *Waktu Pemrosesan (termasuk DB): ${executionTimeMs} ms*`
         })
       });
     } catch (discordErr) {
