@@ -11,12 +11,15 @@ const ALLOWED_EXTENSIONS = ['.pdf', '.docx'];
 // Middleware bantuan untuk CORS
 const setCorsHeaders = (res: VercelResponse) => {
   res.setHeader('Access-Control-Allow-Credentials', 'true');
-  res.setHeader('Access-Control-Allow-Origin', 'https://creepypasta-form.vercel.app'); // Ganti '*' dengan URL frontend Anda di production
+  res.setHeader('Access-Control-Allow-Origin', 'https://creepypasta-form.vercel.app');
   res.setHeader('Access-Control-Allow-Methods', 'GET,OPTIONS,PATCH,DELETE,POST,PUT');
   res.setHeader('Access-Control-Allow-Headers', 'X-CSRF-Token, X-Requested-With, Accept, Accept-Version, Content-Length, Content-MD5, Content-Type, Date, X-Api-Version');
 };
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // 0. Mulai stopwatch untuk mengukur waktu eksekusi
+  const startTime = Date.now();
+
   // 1. Tangani Header CORS & Preflight Request (OPTIONS)
   setCorsHeaders(res);
   if (req.method === 'OPTIONS') {
@@ -94,7 +97,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       });
     }
 
-    // 8. Insert ke Database
+    // 8. Insert ke Database Neon
     await db.insert(submissions).values({
       authorName: authorName.trim(),
       storyText: storyText.trim(),
@@ -103,29 +106,31 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
       tiktok: tiktok || null,
     });
 
-    // ... kode db.insert sebelumnya ...
+    // 9. Hitung Durasi Eksekusi
+    const executionTimeMs = Date.now() - startTime;
 
-// Kirim notifikasi ke Discord
-const discordWebhookUrl = "https://discord.com/api/webhooks/1560522314448248882/dgAoqHhfHHGoURrsP2guVp_1Twe7StfIEemm9vGeKLdWt16WdqL4CX7O27jVhq7Of95C"; // <-- GANTI DENGAN URL HASIL COPY
+    // 10. Kirim Notifikasi ke Discord
+    const discordWebhookUrl = "https://discord.com/api/webhooks/1560522314448248882/dgAoqHhfHHGoURrsP2guVp_1Twe7StfIEemm9vGeKLdWt16WdqL4CX7O27jVhq7Of95C";
 
-try {
-  await fetch(discordWebhookUrl, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      content: `🚨 **BISIKAN BARU TELAH DITERIMA!** 🚨\n\n**Penulis:** ${authorName}\n**Panjang Cerita:** ${storyText.length} karakter.\n**Instagram:** ${instagram || '-'}\n\nSilakan cek database Neon untuk membaca selengkapnya!`
-    })
-  });
-} catch (discordErr) {
-  console.error("Gagal mengirim notif Discord:", discordErr);
-  // Kita tidak me-return error di sini agar tidak mengganggu proses sukses di frontend pengguna
-}
+    try {
+      await fetch(discordWebhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          content: `🚨 **BISIKAN BARU TELAH DITERIMA!** 🚨\n\n**Penulis:** ${authorName}\n**Panjang Cerita:** ${storyText.length} karakter.\n**Instagram:** ${instagram || '-'}\n\n⏱️ *Waktu Pemrosesan (termasuk DB): ${executionTimeMs} ms*`
+        })
+      });
+    } catch (discordErr) {
+      console.error("Gagal mengirim notif Discord:", discordErr);
+      // Jangan return error agar proses di frontend tetap dianggap sukses
+    }
 
-  // 9. Berikan Respons Sukses
-      return res.status(200).json({
+    // 11. Berikan Respons Sukses ke Frontend
+    return res.status(200).json({
       success: true,
       message: 'Cerita berhasil disubmit ke arsip database.',
     });
+
   } catch (error: any) {
     console.error('Runtime error:', error);
     return res.status(500).json({
